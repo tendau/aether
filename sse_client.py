@@ -120,60 +120,64 @@ class SSEClient:
     
     async def _listen_for_events(self):
         """Listen for SSE events from the server."""
-        if self.session is None:
-            self.session = aiohttp.ClientSession()
-        
-        url = f"{self.base_url}/events?agent_id={self.agent_id}"
-        
-        # Track reconnection attempts
-        reconnect_delay = 1
-        max_reconnect_delay = 60  # Max 1 minute
-        
-        while True:
-            try:
-                self.is_listening = True
-                
-                async with self.session.get(url) as response:
-                    if response.status != 200:
-                        logger.error(f"SSE connection failed with status {response.status}")
-                        await asyncio.sleep(reconnect_delay)
-                        reconnect_delay = min(reconnect_delay * 2, max_reconnect_delay)
-                        continue
+        try:
+            if self.session is None:
+                self.session = aiohttp.ClientSession()
+            
+            url = f"{self.base_url}/events?agent_id={self.agent_id}"
+            
+            # Track reconnection attempts
+            reconnect_delay = 1
+            max_reconnect_delay = 60  # Max 1 minute
+            
+            while True:
+                try:
+                    self.is_listening = True
                     
-                    # Reset reconnect delay on successful connection
-                    reconnect_delay = 1
-                    
-                    # Process the events
-                    buffer = ""
-                    async for line in response.content:
-                        line = line.decode('utf-8')
-                        
-                        # Check for ping
-                        if line.startswith(': ping'):
+                    async with self.session.get(url) as response:
+                        if response.status != 200:
+                            logger.error(f"SSE connection failed with status {response.status}")
+                            await asyncio.sleep(reconnect_delay)
+                            reconnect_delay = min(reconnect_delay * 2, max_reconnect_delay)
                             continue
                         
-                        # Line that starts with 'data: ' contains the event data
-                        if line.startswith('data: '):
-                            data = line[6:].strip()
-                            await self._process_sse_event(data)
+                        # Reset reconnect delay on successful connection
+                        reconnect_delay = 1
                         
-            except asyncio.CancelledError:
-                logger.info("SSE listening task cancelled")
-                break
-            except Exception as e:
-                logger.error(f"SSE connection error: {e}")
+                        # Process the events
+                        buffer = ""
+                        async for line in response.content:
+                            line = line.decode('utf-8')
+                            
+                            # Check for ping
+                            if line.startswith(': ping'):
+                                continue
+                            
+                            # Line that starts with 'data: ' contains the event data
+                            if line.startswith('data: '):
+                                data = line[6:].strip()
+                                await self._process_sse_event(data)
+                            
+                except asyncio.CancelledError:
+                    logger.info("SSE listening task cancelled")
+                    break
+                except Exception as e:
+                    logger.error(f"SSE connection error: {e}")
+                    
+                    # Wait before reconnecting
+                    await asyncio.sleep(reconnect_delay)
+                    reconnect_delay = min(reconnect_delay * 2, max_reconnect_delay)
                 
-                # Wait before reconnecting
-                await asyncio.sleep(reconnect_delay)
-                reconnect_delay = min(reconnect_delay * 2, max_reconnect_delay)
-            
-            finally:
-                self.is_listening = False
+                finally:
+                    self.is_listening = False
+        except Exception as e:
+            logger.error(f"Error in SSE listening loop: {e}")
     
     async def start_listening(self):
         """Start listening for SSE events."""
         if self.sse_task is None or self.sse_task.done():
             self.sse_task = asyncio.create_task(self._listen_for_events())
+            await asyncio.sleep(1)
     
     async def stop_listening(self):
         """Stop listening for SSE events."""

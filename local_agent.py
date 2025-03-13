@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+import random
 import sys
 from typing import Dict, List, Optional
 
@@ -86,8 +87,6 @@ Keep responses helpful, concise, and relevant to the user's needs."""
             
             if not sender_id or not content:
                 return
-            
-            logger.info(f"Received message from {sender_id}")
             
             # Add to message queue for processing
             await self.message_queue.put({
@@ -182,7 +181,7 @@ Keep responses helpful, concise, and relevant to the user's needs."""
                 print("2. List connected agents")
                 print("3. Exit")
                 
-                choice = input("\nEnter your choice (1-3): ")
+                choice = await asyncio.to_thread(input, "\nEnter your choice (1-3): ")
                 
                 if choice == '1':
                     await self.start_conversation()
@@ -217,7 +216,10 @@ async def main():
         sys.exit(1)
     
     # Create and run the connector
-    connector = RemoteAgentConnector(config.AGENT_NAME)
+
+    #get random id for agent_id
+    agent_id = random.randint(1000, 9999)
+    connector = RemoteAgentConnector(str(agent_id))
     await connector.run()
 
 if __name__ == "__main__":

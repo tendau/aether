@@ -3,5 +3,6 @@ autogen-agentchat
 autogen
 python-dotenv==1.0.0
 openai
+dotenv
 azure-identity==1.15.0
 sse-starlette==1.6.5 
